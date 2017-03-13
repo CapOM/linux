@@ -701,7 +701,7 @@ static int ttm_bo_evict(struct ttm_buffer_object *bo, bool interruptible,
 		if (ret != -ERESTARTSYS) {
 			pr_err("Failed to find memory space for buffer 0x%p eviction\n",
 			       bo);
-			ttm_bo_mem_space_debug(bo, &placement);
+                        if (0) ttm_bo_mem_space_debug(bo, &placement);
 		}
 		goto out;
 	}
@@ -729,6 +729,8 @@ static int ttm_mem_evict_first(struct ttm_bo_device *bdev,
 	struct ttm_mem_type_manager *man = &bdev->man[mem_type];
 	struct ttm_buffer_object *bo;
 	int ret = -EBUSY, put_count;
+        int nb_reserve_fail = 0;
+        int nb_outside = 0;
 
 	spin_lock(&glob->lru_lock);
 	list_for_each_entry(bo, &man->lru, lru) {
@@ -742,15 +744,20 @@ static int ttm_mem_evict_first(struct ttm_bo_device *bdev,
 				    (place->lpfn && place->lpfn <= bo->mem.start)) {
 					__ttm_bo_unreserve(bo);
 					ret = -EBUSY;
+                                        ++nb_outside;
 					continue;
 				}
 			}
 
 			break;
-		}
+                } else {
+                        ++nb_reserve_fail;
+                }
 	}
 
 	if (ret) {
+                pr_err("ttm_mem_evict_first: failed %d, nb_reserve_fail: %d, nb_outside: %d, place: %d \n",
+                       ret, nb_reserve_fail, nb_outside, !!place);
 		spin_unlock(&glob->lru_lock);
 		return ret;
 	}
@@ -829,8 +836,15 @@ static int ttm_bo_mem_force_space(struct ttm_buffer_object *bo,
 	struct ttm_bo_device *bdev = bo->bdev;
 	struct ttm_mem_type_manager *man = &bdev->man[mem_type];
 	int ret;
+        int loop_count = 0;
 
 	do {
+                /* BUG detected.*/
+                if (loop_count > 250) {
+                        pr_err("ttm_bo_mem_force_space: infinite loop detected\n");
+                        return -ENOMEM;
+                }
+
 		ret = (*man->func->get_node)(man, bo, place, mem);
 		if (unlikely(ret != 0))
 			return ret;
@@ -838,8 +852,12 @@ static int ttm_bo_mem_force_space(struct ttm_buffer_object *bo,
 			break;
 		ret = ttm_mem_evict_first(bdev, mem_type, place,
 					  interruptible, no_wait_gpu);
-		if (unlikely(ret != 0))
+                if (unlikely(ret != 0)) {
+                        pr_err("ttm_bo_mem_force_space: failed %d\n", ret);
 			return ret;
+                }
+
+                loop_count++;
 	} while (1);
 	mem->mem_type = mem_type;
 	return ttm_bo_add_move_fence(bo, man, mem);
