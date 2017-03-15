@@ -572,6 +572,7 @@ int radeon_bo_list_validate(struct radeon_device *rdev,
 					domain = lobj->allowed_domains;
 					goto retry;
 				}
+				pr_err("radeon_bo_list_validate: failed %d so re-adding all to the lru\n", r);
 				ttm_eu_backoff_reservation(ticket, head);
 				return r;
 			}

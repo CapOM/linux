@@ -46,6 +46,9 @@
         printk(KERN_ERR "[%s, %d]" pr_fmt(fmt), \
                current->comm, current->pid, ##__VA_ARGS__)
 
+#undef BUG_ON
+#define BUG_ON(cond) do { if (cond) {pr_err("Failed bug on \n");} } while (0)
+
 struct ttm_bo_device;
 
 struct drm_mm_node;

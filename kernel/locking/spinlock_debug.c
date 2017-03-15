@@ -69,8 +69,8 @@ static void spin_dump(raw_spinlock_t *lock, const char *msg)
 
 static void spin_bug(raw_spinlock_t *lock, const char *msg)
 {
-	if (!debug_locks_off())
-		return;
+        /*if (!debug_locks_off())
+                return;*/
 
 	spin_dump(lock, msg);
 }
