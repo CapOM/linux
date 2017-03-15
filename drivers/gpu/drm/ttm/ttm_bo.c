@@ -218,6 +218,7 @@ int ttm_bo_del_from_lru(struct ttm_buffer_object *bo)
 
 static void ttm_bo_ref_bug(struct kref *list_kref)
 {
+        pr_err("Failed ttm_bo_ref_bug \n");
 	BUG();
 }
 
