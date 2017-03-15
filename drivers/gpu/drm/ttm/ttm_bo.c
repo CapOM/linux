@@ -788,13 +788,16 @@ static int ttm_mem_evict_first(struct ttm_bo_device *bdev,
 	}
 
 	put_count = ttm_bo_del_from_lru(bo);
-	spin_unlock(&glob->lru_lock);
+        spin_unlock(&glob->lru_lock);
 
 	BUG_ON(ret != 0);
 
 	ttm_bo_list_ref_sub(bo, put_count, true);
 
 	ret = ttm_bo_evict(bo, interruptible, no_wait_gpu);
+        if (ret == 0 && (/*mem_type == bo->mem.mem_type ||*/ &bo->lru == &man->lru)) {
+            pr_err("ttm_mem_evict_first: should re-add to the same lru only upon error %d %d %d\n", mem_type, bo->mem.mem_type, &bo->lru == &man->lru);
+        }
 	ttm_bo_unreserve(bo);
 
 	kref_put(&bo->list_kref, ttm_bo_release_list);
