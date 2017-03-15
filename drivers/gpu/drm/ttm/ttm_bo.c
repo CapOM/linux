@@ -876,14 +876,14 @@ static int ttm_bo_mem_force_space(struct ttm_buffer_object *bo,
 		ret = ttm_mem_evict_first(bdev, mem_type, place,
 					  interruptible, no_wait_gpu);
                 if (unlikely(ret != 0)) {
-                        pr_err("ttm_bo_mem_force_space: failed %d, loop_count %d\n", ret, loop_count);
+                        //pr_err("ttm_bo_mem_force_space: failed %d, loop_count %d\n", ret, loop_count);
 			return ret;
                 }
 
-                if (current_lru_size == prev_lru_size) {
+                /*if (current_lru_size == prev_lru_size) {
                         pr_err("ttm_bo_mem_force_space: constant lru size detected, loop_count %d\n", loop_count);
                         return -ENOMEM;
-                }
+                }*/
 
                 prev_lru_size = current_lru_size;
 
