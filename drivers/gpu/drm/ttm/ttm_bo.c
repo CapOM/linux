@@ -127,6 +127,21 @@ static struct kobj_type ttm_bo_glob_kobj_type  = {
 	.default_attrs = ttm_bo_global_attrs
 };
 
+static int get_lru_size(struct ttm_bo_device *bdev,
+                        uint32_t mem_type) {
+        struct ttm_bo_global *glob = bdev->glob;
+        struct ttm_mem_type_manager *man = &bdev->man[mem_type];
+        struct ttm_buffer_object *bo = NULL;
+        int lru_size = 0;
+
+        spin_lock(&glob->lru_lock);
+        list_for_each_entry(bo, &man->lru, lru) {
+                ++lru_size;
+        }
+        spin_unlock(&glob->lru_lock);
+
+        return lru_size;
+}
 
 static inline uint32_t ttm_bo_type_flags(unsigned type)
 {
@@ -755,7 +770,7 @@ static int ttm_mem_evict_first(struct ttm_bo_device *bdev,
                 }
 	}
 
-	if (ret) {
+        if (ret) {
                 pr_err("ttm_mem_evict_first: failed %d, nb_reserve_fail: %d, nb_outside: %d, place: %d \n",
                        ret, nb_reserve_fail, nb_outside, !!place);
 		spin_unlock(&glob->lru_lock);
@@ -837,8 +852,12 @@ static int ttm_bo_mem_force_space(struct ttm_buffer_object *bo,
 	struct ttm_mem_type_manager *man = &bdev->man[mem_type];
 	int ret;
         int loop_count = 0;
+        int prev_lru_size = 0;
+        int current_lru_size = 0;
 
 	do {
+                current_lru_size = get_lru_size(bdev, mem_type);
+
                 /* BUG detected.*/
                 if (loop_count > 250) {
                         pr_err("ttm_bo_mem_force_space: infinite loop detected\n");
@@ -853,9 +872,16 @@ static int ttm_bo_mem_force_space(struct ttm_buffer_object *bo,
 		ret = ttm_mem_evict_first(bdev, mem_type, place,
 					  interruptible, no_wait_gpu);
                 if (unlikely(ret != 0)) {
-                        pr_err("ttm_bo_mem_force_space: failed %d\n", ret);
+                        pr_err("ttm_bo_mem_force_space: failed %d, loop_count %d\n", ret, loop_count);
 			return ret;
                 }
+
+                if (current_lru_size == prev_lru_size) {
+                        pr_err("ttm_bo_mem_force_space: constant lru size detected, loop_count %d\n", loop_count);
+                        return -ENOMEM;
+                }
+
+                prev_lru_size = current_lru_size;
 
                 loop_count++;
 	} while (1);
