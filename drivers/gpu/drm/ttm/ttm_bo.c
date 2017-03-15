@@ -772,8 +772,8 @@ static int ttm_mem_evict_first(struct ttm_bo_device *bdev,
 	}
 
         if (ret) {
-                pr_err("ttm_mem_evict_first: failed %d, nb_reserve_fail: %d, nb_outside: %d, place: %d \n",
-                       ret, nb_reserve_fail, nb_outside, !!place);
+                //pr_err("ttm_mem_evict_first: failed %d, nb_reserve_fail: %d, nb_outside: %d, place: %d \n",
+                //       ret, nb_reserve_fail, nb_outside, !!place);
 		spin_unlock(&glob->lru_lock);
 		return ret;
 	}
@@ -1057,6 +1057,9 @@ int ttm_bo_mem_space(struct ttm_buffer_object *bo,
 		printk(KERN_ERR TTM_PFX "No compatible memory type found.\n");
 		return -EINVAL;
 	}
+
+        //if (ret == -EBUSY)
+        //        pr_err("ttm_bo_mem_force_space failed for all placement: %d\n", placement->num_busy_placement);
 
 	return (has_erestartsys) ? -ERESTARTSYS : -ENOMEM;
 }
