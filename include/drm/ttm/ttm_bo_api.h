@@ -41,6 +41,11 @@
 #include <linux/bitmap.h>
 #include <linux/reservation.h>
 
+#undef pr_err
+#define pr_err(fmt, ...) \
+        printk(KERN_ERR "[%s, %d]" pr_fmt(fmt), \
+               current->comm, current->pid, ##__VA_ARGS__)
+
 struct ttm_bo_device;
 
 struct drm_mm_node;
