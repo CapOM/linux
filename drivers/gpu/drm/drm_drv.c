@@ -101,8 +101,9 @@ void drm_printk(const char *level, unsigned int category,
 	vaf.fmt = format;
 	vaf.va = &args;
 
-	printk("%s" "[" DRM_NAME ":%ps]%s %pV",
-	       level, __builtin_return_address(0),
+	printk("%s" "[%s, %d][" DRM_NAME ":%ps]%s %pV",
+	       level, current->comm, current->pid,
+	       __builtin_return_address(0),
 	       strcmp(level, KERN_ERR) == 0 ? " *ERROR*" : "", &vaf);
 
 	va_end(args);
