@@ -830,18 +830,40 @@ static int ttm_bo_mem_force_space(struct ttm_buffer_object *bo,
 	struct ttm_bo_device *bdev = bo->bdev;
 	struct ttm_mem_type_manager *man = &bdev->man[mem_type];
 	int ret;
+        unsigned int nb_big_loop = 0;
+        int loop_count = 0;
+        bool loop_count_high_reached = false;
 
 	do {
+                if (loop_count > 1000) {
+                        pr_err("loop_count high but continue looping %u \n", nb_big_loop);
+                        loop_count = 0;
+			nb_big_loop++;
+                        loop_count_high_reached = true;
+                }
+
 		ret = (*man->func->get_node)(man, bo, place, mem);
-		if (unlikely(ret != 0))
+                if (unlikely(ret != 0)) {
+                        if (loop_count_high_reached)
+                            pr_err("loop_count high1 was reached but went out of loop %d, with err: %d\n", loop_count, ret);
 			return ret;
+                }
 		if (mem->mm_node)
 			break;
 		ret = ttm_mem_evict_first(bdev, mem_type, place,
 					  interruptible, no_wait_gpu);
-		if (unlikely(ret != 0))
-			return ret;
+                if (unlikely(ret != 0)) {
+                        if (loop_count_high_reached)
+                            pr_err("loop_count high2 was reached but went out of loop %d, with err: %d\n", loop_count, ret);
+                        return ret;
+                }
+                ++loop_count;
 	} while (1);
+
+        if (loop_count_high_reached) {
+                pr_err("loop_count high3 was reached but went out of loop %d\n", loop_count);
+        }
+
 	mem->mem_type = mem_type;
 	return ttm_bo_add_move_fence(bo, man, mem);
 }
