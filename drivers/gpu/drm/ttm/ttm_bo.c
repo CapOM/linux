@@ -64,6 +64,7 @@ static inline int ttm_mem_type_from_place(const struct ttm_place *place,
 			*mem_type = i;
 			return 0;
 		}
+        pr_err("ttm_mem_type_from_place: EINVAL \n");
 	return -EINVAL;
 }
 
@@ -701,7 +702,7 @@ static int ttm_bo_evict(struct ttm_buffer_object *bo, bool interruptible,
 		if (ret != -ERESTARTSYS) {
 			pr_err("Failed to find memory space for buffer 0x%p eviction\n",
 			       bo);
-			ttm_bo_mem_space_debug(bo, &placement);
+                        //ttm_bo_mem_space_debug(bo, &placement);
 		}
 		goto out;
 	}
@@ -1305,7 +1306,7 @@ static int ttm_bo_force_list_clean(struct ttm_bo_device *bdev,
 			if (allow_errors) {
 				return ret;
 			} else {
-				pr_err("Cleanup eviction failed\n");
+                                pr_err("Cleanup eviction failed, %d\n", ret);
 			}
 		}
 		spin_lock(&glob->lru_lock);
