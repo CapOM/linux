@@ -198,7 +198,8 @@ static void radeon_evict_flags(struct ttm_buffer_object *bo,
 	case TTM_PL_VRAM:
 		if (rbo->rdev->ring[radeon_copy_ring_index(rbo->rdev)].ready == false)
 			radeon_ttm_placement_from_domain(rbo, RADEON_GEM_DOMAIN_CPU);
-		else if (rbo->rdev->mc.visible_vram_size < rbo->rdev->mc.real_vram_size &&
+		else if (!(rbo->flags & RADEON_GEM_CPU_ACCESS) &&
+			 rbo->rdev->mc.visible_vram_size < rbo->rdev->mc.real_vram_size &&
 			 bo->mem.start < (rbo->rdev->mc.visible_vram_size >> PAGE_SHIFT)) {
 			unsigned fpfn = rbo->rdev->mc.visible_vram_size >> PAGE_SHIFT;
 			int i;
