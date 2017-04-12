@@ -1844,6 +1844,8 @@ int radeon_gpu_reset(struct radeon_device *rdev)
 	}
 
 	r = radeon_asic_reset(rdev);
+	resched = !r;
+
 	if (!r) {
 		dev_info(rdev->dev, "GPU reset succeeded, trying to resume\n");
 		radeon_resume(rdev);
