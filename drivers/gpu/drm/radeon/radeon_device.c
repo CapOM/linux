@@ -1915,7 +1915,8 @@ do_asic_reset:
 
 	if (!r) {
 		r = radeon_ib_ring_tests(rdev);
-		if (r && saved)
+		/* Only retry if it was not a hard reset. */
+		if (r && saved && reset_count == 0 && !radeon_hard_reset)
 			r = -EAGAIN;
 	} else {
 		/* bad news, how to tell it to userspace ? */
