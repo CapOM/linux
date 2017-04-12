@@ -1087,6 +1087,7 @@ int radeon_vm_clear_invalids(struct radeon_device *rdev,
 {
 	struct radeon_bo_va *bo_va;
 	int r;
+	int check_count = 0;
 
 	spin_lock(&vm->status_lock);
 	while (!list_empty(&vm->invalidated)) {
@@ -1095,11 +1096,19 @@ int radeon_vm_clear_invalids(struct radeon_device *rdev,
 		spin_unlock(&vm->status_lock);
 
 		r = radeon_vm_bo_update(rdev, bo_va, NULL);
-		if (r)
+		if (r) {
+			if (check_count > 20)
+				DRM_ERROR("clear invalids failed: %d and count high: %d\n", r, check_count);
 			return r;
+		}
 
 		spin_lock(&vm->status_lock);
+		++check_count;
 	}
+
+	if (check_count > 20)
+		DRM_ERROR("clear invalids ok but count high: %d\n", check_count);
+
 	spin_unlock(&vm->status_lock);
 
 	return 0;

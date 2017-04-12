@@ -250,6 +250,7 @@ bool radeon_ring_test_lockup(struct radeon_device *rdev, struct radeon_ring *rin
 	uint64_t last = atomic64_read(&ring->last_activity);
 	uint64_t elapsed;
 
+	// TODO: improve to check that ttm is working
 	if (rptr != atomic_read(&ring->last_rptr)) {
 		/* ring is still working, no lockup */
 		radeon_ring_lockup_update(rdev, ring);
@@ -262,6 +263,12 @@ bool radeon_ring_test_lockup(struct radeon_device *rdev, struct radeon_ring *rin
 			ring->idx, elapsed);
 		return true;
 	}
+
+	if (elapsed >= 1000) {
+		DRM_ERROR("ring %d busy for more than %llumsec\n",
+			ring->idx, elapsed);
+	}
+
 	/* give a chance to the GPU ... */
 	return false;
 }

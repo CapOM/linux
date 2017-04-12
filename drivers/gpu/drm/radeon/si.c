@@ -3782,21 +3782,29 @@ u32 si_gpu_check_soft_reset(struct radeon_device *rdev)
 
 	/* DMA_STATUS_REG 0 */
 	tmp = RREG32(DMA_STATUS_REG + DMA0_REGISTER_OFFSET);
-	if (!(tmp & DMA_IDLE))
+	if (!(tmp & DMA_IDLE)) {
+		//DRM_ERROR("DMA_STATUS_REG 0 busy\n");
 		reset_mask |= RADEON_RESET_DMA;
+	}
 
 	/* DMA_STATUS_REG 1 */
 	tmp = RREG32(DMA_STATUS_REG + DMA1_REGISTER_OFFSET);
-	if (!(tmp & DMA_IDLE))
+	if (!(tmp & DMA_IDLE)) {
+		//DRM_ERROR("DMA_STATUS_REG 1 busy\n");
 		reset_mask |= RADEON_RESET_DMA1;
+	}
 
 	/* SRBM_STATUS2 */
 	tmp = RREG32(SRBM_STATUS2);
-	if (tmp & DMA_BUSY)
+	if (tmp & DMA_BUSY) {
+		//DRM_ERROR("DMA_SRBM_STATUS2 busy\n");
 		reset_mask |= RADEON_RESET_DMA;
+	}
 
-	if (tmp & DMA1_BUSY)
+	if (tmp & DMA1_BUSY) {
+		//DRM_ERROR("DMA1_BUSY busy\n");
 		reset_mask |= RADEON_RESET_DMA1;
+	}
 
 	/* SRBM_STATUS */
 	tmp = RREG32(SRBM_STATUS);
@@ -4116,7 +4124,12 @@ bool si_gfx_is_lockup(struct radeon_device *rdev, struct radeon_ring *ring)
 		radeon_ring_lockup_update(rdev, ring);
 		return false;
 	}
-	return radeon_ring_test_lockup(rdev, ring);
+	if (radeon_ring_test_lockup(rdev, ring)) {
+		DRM_ERROR("gfx check lockup\n");
+		return true;
+	} else {
+		return false;
+	}
 }
 
 /* MC */

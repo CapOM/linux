@@ -79,6 +79,7 @@ static int radeon_cs_parser_relocs(struct radeon_cs_parser *p)
 	unsigned i;
 	bool need_mmap_lock = false;
 	int r;
+	//uint64_t start = jiffies_64;
 
 	if (p->chunk_relocs == NULL) {
 		return 0;
@@ -188,7 +189,10 @@ static int radeon_cs_parser_relocs(struct radeon_cs_parser *p)
 	if (need_mmap_lock)
 		down_read(&current->mm->mmap_sem);
 
+	// Do it only on ring 0 gfx
+	//DRM_ERROR("radeon_bo_list_validate start\n");
 	r = radeon_bo_list_validate(p->rdev, &p->ticket, &p->validated, p->ring);
+	//DRM_ERROR("/radeon_bo_list_validate end: %llud\n", jiffies_to_msecs(jiffies_64 - start));
 
 	if (need_mmap_lock)
 		up_read(&current->mm->mmap_sem);

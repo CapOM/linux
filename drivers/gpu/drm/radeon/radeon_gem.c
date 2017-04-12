@@ -606,6 +606,8 @@ int radeon_gem_va_ioctl(struct drm_device *dev, void *data,
 	int r = 0;
 
 	if (!rdev->vm_manager.enabled) {
+	    /* Possibly because the gpu is being reseted */
+		DRM_ERROR("vm manager disabled, offset: 0x%lX\n", args ? ((unsigned long)args->offset) : 0);
 		args->operation = RADEON_VA_RESULT_ERROR;
 		return -ENOTTY;
 	}

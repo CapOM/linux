@@ -65,8 +65,9 @@ static int ttm_bo_man_get_node(struct ttm_mem_type_manager *man,
 		lpfn = man->size;
 
 	node = kzalloc(sizeof(*node), GFP_KERNEL);
-	if (!node)
+	if (!node) {
 		return -ENOMEM;
+	}
 
 	if (place->flags & TTM_PL_FLAG_TOPDOWN) {
 		sflags = DRM_MM_SEARCH_BELOW;

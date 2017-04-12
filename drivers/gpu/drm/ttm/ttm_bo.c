@@ -263,14 +263,17 @@ static int ttm_bo_add_ttm(struct ttm_buffer_object *bo, bool zero_alloc)
 	case ttm_bo_type_kernel:
 		bo->ttm = bdev->driver->ttm_tt_create(bdev, bo->num_pages << PAGE_SHIFT,
 						      page_flags, glob->dummy_read_page);
-		if (unlikely(bo->ttm == NULL))
+		if (unlikely(bo->ttm == NULL)) {
+			pr_err("ttm_bo_add_ttm1: -ENOMEM\n");
 			ret = -ENOMEM;
+		}
 		break;
 	case ttm_bo_type_sg:
 		bo->ttm = bdev->driver->ttm_tt_create(bdev, bo->num_pages << PAGE_SHIFT,
 						      page_flags | TTM_PAGE_FLAG_SG,
 						      glob->dummy_read_page);
 		if (unlikely(bo->ttm == NULL)) {
+			pr_err("ttm_bo_add_ttm2: -ENOMEM\n");
 			ret = -ENOMEM;
 			break;
 		}
@@ -346,7 +349,7 @@ static int ttm_bo_handle_move_mem(struct ttm_buffer_object *bo,
 	else if (bdev->driver->move)
 		ret = bdev->driver->move(bo, evict, interruptible,
 					 no_wait_gpu, mem);
-	else
+	else // Fallback ?
 		ret = ttm_bo_move_memcpy(bo, interruptible, no_wait_gpu, mem);
 
 	if (ret) {
@@ -539,6 +542,8 @@ static int ttm_bo_cleanup_refs_and_unlock(struct ttm_buffer_object *bo,
 
 	if (ret || unlikely(list_empty(&bo->ddestroy))) {
 		__ttm_bo_unreserve(bo);
+		if (bo->busy_count > 10)
+			pr_err("ttm_bo_cleanup_refs_and_unlock: bo %p is busy for long, count: %d\n", bo, bo->busy_count);
 		spin_unlock(&glob->lru_lock);
 		return ret;
 	}
@@ -610,8 +615,15 @@ static int ttm_bo_delayed_delete(struct ttm_bo_device *bdev, bool remove_all)
 out_unlock:
 	spin_unlock(&glob->lru_lock);
 out:
-	if (entry)
+	if (entry) {
+		if (entry && ret == -EBUSY) {
+			if (entry->busy_count > 10) {
+				pr_err("ttm_bo_delayed_delete: -EBUSY, bo: %p, skip\n", entry);
+				ret = 0;
+			}
+		}
 		kref_put(&entry->list_kref, ttm_bo_release_list);
+	}
 	return ret;
 }
 
@@ -672,6 +684,7 @@ static int ttm_bo_evict(struct ttm_buffer_object *bo, bool interruptible,
 	struct ttm_mem_reg evict_mem;
 	struct ttm_placement placement;
 	int ret = 0;
+	uint64_t start = jiffies_64;
 
 	lockdep_assert_held(&bo->resv->lock.base);
 
@@ -685,6 +698,8 @@ static int ttm_bo_evict(struct ttm_buffer_object *bo, bool interruptible,
 	bdev->driver->evict_flags(bo, &placement);
 	ret = ttm_bo_mem_space(bo, &placement, &evict_mem, interruptible,
 				no_wait_gpu);
+	if (jiffies_to_msecs(jiffies_64 - start) > 500)
+		pr_err("ttm_bo_move_buffer: bo: %p, slow %u\n", bo, jiffies_to_msecs(jiffies_64 - start));
 	if (ret) {
 		if (ret != -ERESTARTSYS) {
 			pr_err("Failed to find memory space for buffer 0x%p eviction\n",
@@ -698,7 +713,7 @@ static int ttm_bo_evict(struct ttm_buffer_object *bo, bool interruptible,
 				     no_wait_gpu);
 	if (unlikely(ret)) {
 		if (ret != -ERESTARTSYS)
-			pr_err("Buffer eviction failed\n");
+			pr_err("Buffer eviction failed, ret: %d\n", ret);
 		ttm_bo_mem_put(bo, &evict_mem);
 		goto out;
 	}
@@ -776,6 +791,9 @@ static int ttm_mem_evict_first(struct ttm_bo_device *bdev,
 	ttm_bo_list_ref_sub(bo, put_count, true);
 
 	ret = ttm_bo_evict(bo, interruptible, no_wait_gpu);
+	if (i >= 0 && i < TTM_MAX_BO_PRIORITY && &bo->lru == &man->lru[i])
+		pr_err("ttm_mem_evict_first: error bo %p re-added to same lru, ret: %d\n", bo, ret);
+
 	ttm_bo_unreserve(bo);
 
 	kref_put(&bo->list_kref, ttm_bo_release_list);
@@ -833,20 +851,47 @@ static int ttm_bo_mem_force_space(struct ttm_buffer_object *bo,
 	struct ttm_bo_device *bdev = bo->bdev;
 	struct ttm_mem_type_manager *man = &bdev->man[mem_type];
 	int ret;
+	int check_count = 0;
+	uint64_t elapsed = 0;
+	uint64_t elapsed_inter = 0;
+	uint64_t start = jiffies_64;
+	uint64_t last = start;
+	
+	pr_err("ttm_bo_mem_force_space: start for bo: %p\n", bo);
 
 	do {
 		ret = (*man->func->get_node)(man, bo, place, mem);
-		if (unlikely(ret != 0))
+		if (unlikely(ret != 0)) {
+			if (check_count >= 10)
+				pr_err("ttm_bo_mem_force_space: loop high %d and failed to get_node: %d\n", check_count, ret);
 			return ret;
+		}
 		if (mem->mm_node)
 			break;
 		ret = ttm_mem_evict_first(bdev, mem_type, place,
 					  interruptible, no_wait_gpu);
-		if (unlikely(ret != 0))
+		if (unlikely(ret != 0)) {
+			if (check_count >= 10)
+				pr_err("ttm_bo_mem_force_space: loop high %d and failed to evict: %d\n", check_count, ret);
 			return ret;
+		}
+		++check_count;
+		elapsed_inter = jiffies_to_msecs(jiffies_64 - last);
+		if ((check_count % 10 == 0) || (elapsed_inter > 500)) {
+			pr_err("ttm_bo_mem_force_space: loop already high %d and continue, elapsed_inter: %llud, elapsed: %llud\n", 
+					check_count, elapsed, elapsed_inter);
+			last = jiffies_64;
+		}
+
 	} while (1);
+
+	elapsed = jiffies_to_msecs(jiffies_64 - start);
+
+	//if (check_count >= 10 || elapsed > 500)
+	pr_err("/ttm_bo_mem_force_space: OK bo %p, but loop count %d , elapsed: %llud\n", bo, check_count, elapsed);
+
 	mem->mem_type = mem_type;
-	return ttm_bo_add_move_fence(bo, man, mem);
+	return ttm_bo_add_move_fence(bo, man, mem); // TODO 
 }
 
 static uint32_t ttm_bo_select_caching(struct ttm_mem_type_manager *man,
@@ -1025,6 +1070,7 @@ static int ttm_bo_move_buffer(struct ttm_buffer_object *bo,
 {
 	int ret = 0;
 	struct ttm_mem_reg mem;
+	uint64_t start = jiffies_64;
 
 	lockdep_assert_held(&bo->resv->lock.base);
 
@@ -1036,8 +1082,11 @@ static int ttm_bo_move_buffer(struct ttm_buffer_object *bo,
 	/*
 	 * Determine where to move the buffer.
 	 */
+	
 	ret = ttm_bo_mem_space(bo, placement, &mem,
 			       interruptible, no_wait_gpu);
+	if (jiffies_to_msecs(jiffies_64 - start) > 500)
+		pr_err("ttm_bo_move_buffer: bo: %p, slow %u\n", bo, jiffies_to_msecs(jiffies_64 - start));
 	if (ret)
 		goto out_unlock;
 	ret = ttm_bo_handle_move_mem(bo, &mem, false,
@@ -1192,6 +1241,7 @@ int ttm_bo_init_reserved(struct ttm_bo_device *bdev,
 	bo->persistent_swap_storage = persistent_swap_storage;
 	bo->acc_size = acc_size;
 	bo->sg = sg;
+	bo->busy_count = 0;
 	if (resv) {
 		bo->resv = resv;
 		lockdep_assert_held(&bo->resv->lock.base);
@@ -1260,8 +1310,10 @@ int ttm_bo_init(struct ttm_bo_device *bdev,
 				   page_alignment, interruptible,
 				   persistent_swap_storage, acc_size,
 				   sg, resv, destroy);
-	if (ret)
+	if (ret) {
+		pr_err("ttm_bo_init failed: %d\n", ret);
 		return ret;
+	}
 
 	if (!resv)
 		ttm_bo_unreserve(bo);
@@ -1340,6 +1392,7 @@ static int ttm_bo_force_list_clean(struct ttm_bo_device *bdev,
 	 */
 
 	spin_lock(&glob->lru_lock);
+	pr_err("ttm_bo_force_list_clean\n");
 	for (i = 0; i < TTM_MAX_BO_PRIORITY; ++i) {
 		while (!list_empty(&man->lru[i])) {
 			spin_unlock(&glob->lru_lock);
@@ -1349,6 +1402,7 @@ static int ttm_bo_force_list_clean(struct ttm_bo_device *bdev,
 			spin_lock(&glob->lru_lock);
 		}
 	}
+	pr_err("/ttm_bo_force_list_clean\n");
 	spin_unlock(&glob->lru_lock);
 
 	spin_lock(&man->move_lock);
@@ -1388,7 +1442,9 @@ int ttm_bo_clean_mm(struct ttm_bo_device *bdev, unsigned mem_type)
 
 	ret = 0;
 	if (mem_type > 0) {
+		pr_err("ttm_bo_clean_mm\n");
 		ret = ttm_bo_force_list_clean(bdev, mem_type);
+		pr_err("/ttm_bo_clean_mm %d\n", ret);
 		if (ret) {
 			pr_err("Cleanup eviction failed\n");
 			return ret;
@@ -1404,6 +1460,7 @@ EXPORT_SYMBOL(ttm_bo_clean_mm);
 int ttm_bo_evict_mm(struct ttm_bo_device *bdev, unsigned mem_type)
 {
 	struct ttm_mem_type_manager *man = &bdev->man[mem_type];
+	int ret = 0;
 
 	if (mem_type == 0 || mem_type >= TTM_NUM_MEM_TYPES) {
 		pr_err("Illegal memory manager memory type %u\n", mem_type);
@@ -1415,7 +1472,11 @@ int ttm_bo_evict_mm(struct ttm_bo_device *bdev, unsigned mem_type)
 		return 0;
 	}
 
-	return ttm_bo_force_list_clean(bdev, mem_type);
+	pr_err("ttm_bo_evict_mm\n");
+	ret = ttm_bo_force_list_clean(bdev, mem_type);
+	pr_err("/ttm_bo_evict_mm %d\n", ret);
+	
+	return ret;
 }
 EXPORT_SYMBOL(ttm_bo_evict_mm);
 
@@ -1652,6 +1713,7 @@ int ttm_bo_wait(struct ttm_buffer_object *bo,
 	long timeout = 15 * HZ;
 
 	if (no_wait) {
+		bo->busy_count = 0;
 		if (reservation_object_test_signaled_rcu(bo->resv, true))
 			return 0;
 		else
@@ -1660,12 +1722,17 @@ int ttm_bo_wait(struct ttm_buffer_object *bo,
 
 	timeout = reservation_object_wait_timeout_rcu(bo->resv, true,
 						      interruptible, timeout);
-	if (timeout < 0)
+	if (timeout < 0) {
+		bo->busy_count = 0;
 		return timeout;
+	}
 
-	if (timeout == 0)
+	if (timeout == 0) {
+		++bo->busy_count;
 		return -EBUSY;
+	}
 
+	bo->busy_count = 0;
 	reservation_object_add_excl_fence(bo->resv, NULL);
 	return 0;
 }

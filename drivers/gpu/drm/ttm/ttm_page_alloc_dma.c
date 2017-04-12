@@ -791,6 +791,10 @@ static int ttm_dma_pool_alloc_new_pages(struct dma_pool *pool,
 	}
 out:
 	kfree(caching_array);
+
+	if (unlikely(r == -ENOMEM))
+		pr_err("ttm_dma_pool_alloc_new_pages: -ENOMEM\n");
+
 	return r;
 }
 

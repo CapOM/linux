@@ -352,6 +352,7 @@ int ttm_ref_object_add(struct ttm_object_file *tfile,
 		ref = kmalloc(sizeof(*ref), GFP_KERNEL);
 		if (unlikely(ref == NULL)) {
 			ttm_mem_global_free(mem_glob, sizeof(*ref));
+			pr_err("ttm_ref_object_add: -ENOMEM\n");
 			return -ENOMEM;
 		}
 

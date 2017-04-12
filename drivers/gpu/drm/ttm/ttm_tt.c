@@ -316,6 +316,8 @@ int ttm_tt_swapin(struct ttm_tt *ttm)
 
 	return 0;
 out_err:
+	if (unlikely(ret == -ENOMEM))
+		pr_err("ttm_tt_swapin: -ENOMEM\n");
 	return ret;
 }
 
@@ -369,6 +371,9 @@ int ttm_tt_swapout(struct ttm_tt *ttm, struct file *persistent_swap_storage)
 out_err:
 	if (!persistent_swap_storage)
 		fput(swap_storage);
+
+	if (unlikely(ret == -ENOMEM))
+		pr_err("ttm_tt_swapout: -ENOMEM\n");
 
 	return ret;
 }

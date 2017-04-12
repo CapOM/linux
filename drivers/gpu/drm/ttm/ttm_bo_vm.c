@@ -260,6 +260,7 @@ static int ttm_bo_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 		if (unlikely((ret == -EBUSY) || (ret != 0 && i > 0)))
 			break;
 		else if (unlikely(ret != 0)) {
+			pr_err("ttm_bo_vm_fault: ret %d\n", ret);
 			retval =
 			    (ret == -ENOMEM) ? VM_FAULT_OOM : VM_FAULT_SIGBUS;
 			goto out_io_unlock;

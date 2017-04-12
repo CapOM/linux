@@ -196,16 +196,19 @@ int radeon_ib_pool_init(struct radeon_device *rdev)
 		return 0;
 	}
 
+	// TODO: try
 	if (rdev->family >= CHIP_BONAIRE) {
+		DRM_ERROR("init with WC \n");
 		r = radeon_sa_bo_manager_init(rdev, &rdev->ring_tmp_bo,
 					      RADEON_IB_POOL_SIZE*64*1024,
 					      RADEON_GPU_PAGE_SIZE,
 					      RADEON_GEM_DOMAIN_GTT,
-					      RADEON_GEM_GTT_WC);
+					      RADEON_GEM_GTT_WC); //
 	} else {
 		/* Before CIK, it's better to stick to cacheable GTT due
 		 * to the command stream checking
 		 */
+		 DRM_ERROR("init without WC \n");
 		r = radeon_sa_bo_manager_init(rdev, &rdev->ring_tmp_bo,
 					      RADEON_IB_POOL_SIZE*64*1024,
 					      RADEON_GPU_PAGE_SIZE,

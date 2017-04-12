@@ -110,6 +110,8 @@ static void radeon_fence_schedule_check(struct radeon_device *rdev, int ring)
 	/*
 	 * Do not reset the timer here with mod_delayed_work,
 	 * this can livelock in an interaction with TTM delayed destroy.
+	 * TODO: interesting comment above about livelock and TTM
+	 * Also see CONFIG_WQ_POWER_EFFICIENT_DEFAULT.
 	 */
 	queue_delayed_work(system_power_efficient_wq,
 			   &rdev->fence_drv[ring].lockup_work,
@@ -246,6 +248,7 @@ static bool radeon_fence_activity(struct radeon_device *rdev, int ring)
 			 * seq then the current real last seq as signaled
 			 * by the hw.
 			 */
+			DRM_ERROR("break, good or bad, it make skip the check lockup on ring, resched: %d\n", seq < last_emitted);
 			break;
 		}
 	} while (atomic64_xchg(&rdev->fence_drv[ring].last_seq, seq) > seq);
@@ -883,6 +886,7 @@ static void radeon_fence_driver_init_ring(struct radeon_device *rdev, int ring)
 		rdev->fence_drv[ring].sync_seq[i] = 0;
 	atomic64_set(&rdev->fence_drv[ring].last_seq, 0);
 	rdev->fence_drv[ring].initialized = false;
+	DRM_ERROR("Intialize delayed work radeon_fence_check_lockup for ring: %d\n", ring);
 	INIT_DELAYED_WORK(&rdev->fence_drv[ring].lockup_work,
 			  radeon_fence_check_lockup);
 	rdev->fence_drv[ring].rdev = rdev;

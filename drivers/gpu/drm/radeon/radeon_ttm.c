@@ -317,6 +317,7 @@ static int radeon_move_vram_ram(struct ttm_buffer_object *bo,
 	struct ttm_place placements;
 	struct ttm_placement placement;
 	int r;
+	uint64_t start = jiffies_64;
 
 	rdev = radeon_get_rdev(bo->bdev);
 	tmp_mem = *new_mem;
@@ -330,6 +331,8 @@ static int radeon_move_vram_ram(struct ttm_buffer_object *bo,
 	placements.flags = TTM_PL_MASK_CACHING | TTM_PL_FLAG_TT;
 	r = ttm_bo_mem_space(bo, &placement, &tmp_mem,
 			     interruptible, no_wait_gpu);
+	if (jiffies_to_msecs(jiffies_64 - start) > 500)
+		DRM_ERROR("bo: %p, slow %u\n", bo, jiffies_to_msecs(jiffies_64 - start));
 	if (unlikely(r)) {
 		return r;
 	}
@@ -364,6 +367,7 @@ static int radeon_move_ram_vram(struct ttm_buffer_object *bo,
 	struct ttm_placement placement;
 	struct ttm_place placements;
 	int r;
+	uint64_t start = jiffies_64;
 
 	rdev = radeon_get_rdev(bo->bdev);
 	tmp_mem = *new_mem;
@@ -377,6 +381,8 @@ static int radeon_move_ram_vram(struct ttm_buffer_object *bo,
 	placements.flags = TTM_PL_MASK_CACHING | TTM_PL_FLAG_TT;
 	r = ttm_bo_mem_space(bo, &placement, &tmp_mem,
 			     interruptible, no_wait_gpu);
+	if (jiffies_to_msecs(jiffies_64 - start) > 500)
+		DRM_ERROR("bo: %p, slow %u\n", bo, jiffies_to_msecs(jiffies_64 - start));
 	if (unlikely(r)) {
 		return r;
 	}
@@ -402,6 +408,7 @@ static int radeon_bo_move(struct ttm_buffer_object *bo,
 	struct radeon_bo *rbo;
 	struct ttm_mem_reg *old_mem = &bo->mem;
 	int r;
+	uint64_t start = jiffies_64;
 
 	r = ttm_bo_wait(bo, interruptible, no_wait_gpu);
 	if (r)
@@ -409,6 +416,8 @@ static int radeon_bo_move(struct ttm_buffer_object *bo,
 
 	/* Can't move a pinned BO */
 	rbo = container_of(bo, struct radeon_bo, tbo);
+	if (rbo->pin_count > 0)
+		DRM_ERROR("bo already pin WARN WARN %p\n", bo);
 	if (WARN_ON_ONCE(rbo->pin_count > 0))
 		return -EINVAL;
 
@@ -427,6 +436,7 @@ static int radeon_bo_move(struct ttm_buffer_object *bo,
 	}
 	if (!rdev->ring[radeon_copy_ring_index(rdev)].ready ||
 	    rdev->asic->copy.copy == NULL) {
+	    DRM_ERROR("ring busy fallback to memcpy %p\n", bo);
 		/* use memcpy */
 		goto memcpy;
 	}
@@ -444,12 +454,16 @@ static int radeon_bo_move(struct ttm_buffer_object *bo,
 	}
 
 	if (r) {
+		DRM_ERROR("blit failed %p, ret: %d\n", bo, r);
 memcpy:
 		r = ttm_bo_move_memcpy(bo, interruptible, no_wait_gpu, new_mem);
 		if (r) {
 			return r;
 		}
 	}
+	
+	if (jiffies_to_msecs(jiffies_64 - start) > 500)
+		DRM_ERROR("bo: %p, slow %u\n", bo, jiffies_to_msecs(jiffies_64 - start));
 
 	/* update statistics */
 	atomic64_add((u64)bo->num_pages << PAGE_SHIFT, &rdev->num_bytes_moved);

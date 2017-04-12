@@ -52,7 +52,13 @@ bool si_dma_is_lockup(struct radeon_device *rdev, struct radeon_ring *ring)
 		radeon_ring_lockup_update(rdev, ring);
 		return false;
 	}
-	return radeon_ring_test_lockup(rdev, ring);
+
+	if (radeon_ring_test_lockup(rdev, ring)) {
+		DRM_ERROR("dma check lockup\n");
+		return true;
+	} else {
+		return false;
+	}
 }
 
 /**

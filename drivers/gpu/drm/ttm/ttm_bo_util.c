@@ -221,6 +221,7 @@ static int ttm_mem_reg_ioremap(struct ttm_bo_device *bdev, struct ttm_mem_reg *m
 			(void) ttm_mem_io_lock(man, false);
 			ttm_mem_io_free(bdev, mem);
 			ttm_mem_io_unlock(man);
+			pr_err("ttm_mem_reg_ioremap: -ENOMEM\n");
 			return -ENOMEM;
 		}
 	}
@@ -262,8 +263,10 @@ static int ttm_copy_io_ttm_page(struct ttm_tt *ttm, void *src,
 	struct page *d = ttm->pages[page];
 	void *dst;
 
-	if (!d)
+	if (!d) {
+		pr_err("ttm_copy_io_ttm_page: -ENOMEM\n");
 		return -ENOMEM;
+	}
 
 	src = (void *)((unsigned long)src + (page << PAGE_SHIFT));
 
@@ -345,13 +348,19 @@ int ttm_bo_move_memcpy(struct ttm_buffer_object *bo,
 	unsigned long add = 0;
 	int dir;
 
+	pr_err("ttm_bo_move_memcpy: start bo: %p, interuptible: %d, no wait gpu: %d\n", bo, interruptible, no_wait_gpu);
+
 	ret = ttm_bo_wait(bo, interruptible, no_wait_gpu);
-	if (ret)
+	if (ret) {
+		pr_err("ttm_bo_move_memcpy: failed0 bo: %p, ret: %d\n", bo, ret);
 		return ret;
+	}
 
 	ret = ttm_mem_reg_ioremap(bdev, old_mem, &old_iomap);
-	if (ret)
+	if (ret) {
+		pr_err("ttm_bo_move_memcpy: failed1 bo: %p, ret: %d\n", bo, ret);
 		return ret;
+	}
 	ret = ttm_mem_reg_ioremap(bdev, new_mem, &new_iomap);
 	if (ret)
 		goto out;
@@ -428,6 +437,12 @@ out:
 	 */
 	if (!ret)
 		ttm_bo_mem_put(bo, &old_copy);
+
+	if (ret)
+		pr_err("ttm_bo_move_memcpy: failed2 bo: %p, ret: %d\n", bo, ret);
+	else
+		pr_err("ttm_bo_move_memcpy: done ok bo: %p\n", bo);
+
 	return ret;
 }
 EXPORT_SYMBOL(ttm_bo_move_memcpy);
@@ -535,7 +550,13 @@ static int ttm_bo_ioremap(struct ttm_buffer_object *bo,
 			map->virtual = ioremap_nocache(bo->mem.bus.base + bo->mem.bus.offset + offset,
 						       size);
 	}
-	return (!map->virtual) ? -ENOMEM : 0;
+
+	if (unlikely(!map->virtual)) {
+		pr_err("ttm_bo_ioremap: -ENOMEM \n");
+		return  -ENOMEM;
+	}
+
+	return 0;
 }
 
 static int ttm_bo_kmap_ttm(struct ttm_buffer_object *bo,

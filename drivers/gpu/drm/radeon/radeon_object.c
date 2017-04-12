@@ -81,7 +81,9 @@ static void radeon_ttm_bo_destroy(struct ttm_buffer_object *tbo)
 	list_del_init(&bo->list);
 	mutex_unlock(&bo->rdev->gem.mutex);
 	radeon_bo_clear_surface_reg(bo);
-	WARN_ON(!list_empty(&bo->va));
+	/* WARN_ON(!list_empty(&bo->va)); */
+	if (!list_empty(&bo->va))
+		DRM_ERROR("list not empty for bo: %p\n", bo);
 	drm_gem_object_release(&bo->gem_base);
 	kfree(bo);
 }
@@ -186,6 +188,7 @@ int radeon_bo_create(struct radeon_device *rdev,
 	unsigned long page_align = roundup(byte_align, PAGE_SIZE) >> PAGE_SHIFT;
 	size_t acc_size;
 	int r;
+	static int nb_print = 0;
 
 	size = ALIGN(size, PAGE_SIZE);
 
@@ -252,6 +255,11 @@ int radeon_bo_create(struct radeon_device *rdev,
 	 */
 	if (!drm_arch_can_wc_memory())
 		bo->flags &= ~RADEON_GEM_GTT_WC;
+
+	if (nb_print < 10) {
+		DRM_ERROR("Is write-combining supported: %d\n", drm_arch_can_wc_memory());
+		++nb_print;
+	}
 #endif
 
 	radeon_ttm_placement_from_domain(bo, domain);
