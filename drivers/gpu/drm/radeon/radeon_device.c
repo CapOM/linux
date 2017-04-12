@@ -1812,7 +1812,7 @@ int radeon_gpu_reset(struct radeon_device *rdev)
 {
 	unsigned ring_sizes[RADEON_NUM_RINGS];
 	uint32_t *ring_data[RADEON_NUM_RINGS];
-
+	int reset_count = 0;
 	bool saved = false;
 
 	int i, r;
@@ -1843,13 +1843,22 @@ int radeon_gpu_reset(struct radeon_device *rdev)
 		}
 	}
 
-	r = radeon_asic_reset(rdev);
+do_asic_reset:
+	r = reset_count == 0 ? radeon_asic_reset(rdev) : radeon_asic_hard_reset(rdev);
 	resched = !r;
 
 	if (!r) {
 		dev_info(rdev->dev, "GPU reset succeeded, trying to resume\n");
 		r = radeon_resume(rdev);
 		resched = !r;
+
+		/* Only retry once, if atom bios failed to load after a soft reset */
+		if (reset_count == 0 && r == -EINVAL && !radeon_hard_reset) {
+			dev_info(rdev->dev, "Failed to resume after soft reset, try hard reset\n");
+			++reset_count;
+			udelay(10);
+			goto do_asic_reset;
+		}
 	}
 
 	radeon_restore_bios_scratch_regs(rdev);
