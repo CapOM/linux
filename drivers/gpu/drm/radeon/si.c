@@ -7184,7 +7184,11 @@ int si_resume(struct radeon_device *rdev)
 	 * shape.
 	 */
 	/* post card */
-	atom_asic_init(rdev->mode_info.atom_context);
+	r = atom_asic_init(rdev->mode_info.atom_context);
+	if (r) {
+		DRM_ERROR("atom asic init failed on resume\n");
+		return r;
+	}
 
 	/* init golden registers */
 	si_init_golden_registers(rdev);
