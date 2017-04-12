@@ -1907,7 +1907,8 @@ do_asic_reset:
 
 	downgrade_write(&rdev->exclusive_lock);
 
-	drm_helper_resume_force_mode(rdev->ddev);
+	if (!r || (reset_count == 0 && !radeon_hard_reset))
+		drm_helper_resume_force_mode(rdev->ddev);
 
 	/* set the power state here in case we are a PX system or headless */
 	if ((rdev->pm.pm_method == PM_METHOD_DPM) && rdev->pm.dpm_enabled)
