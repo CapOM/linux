@@ -433,6 +433,8 @@ static void radeon_flip_work_func(struct work_struct *__work)
 				up_read(&rdev->exclusive_lock);
 				do {
 					r = radeon_gpu_reset(rdev);
+					if (r == -EAGAIN)
+						DRM_ERROR("GPU reset failed, try again\n");
 				} while (r == -EAGAIN);
 				down_read(&rdev->exclusive_lock);
 			}
