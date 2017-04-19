@@ -115,6 +115,7 @@ extern int radeon_auxch;
 extern int radeon_mst;
 extern int radeon_uvd;
 extern int radeon_vce;
+extern int radeon_sa_wc;
 
 /*
  * Copy from radeon_drv.h so we don't have to include both and have conflicting

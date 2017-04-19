@@ -191,26 +191,25 @@ int radeon_ib_schedule(struct radeon_device *rdev, struct radeon_ib *ib,
 int radeon_ib_pool_init(struct radeon_device *rdev)
 {
 	int r;
+	int flags = 0;
 
 	if (rdev->ib_pool_ready) {
 		return 0;
 	}
 
-	if (rdev->family >= CHIP_BONAIRE) {
-		r = radeon_sa_bo_manager_init(rdev, &rdev->ring_tmp_bo,
-					      RADEON_IB_POOL_SIZE*64*1024,
-					      RADEON_GPU_PAGE_SIZE,
-					      RADEON_GEM_DOMAIN_GTT,
-					      RADEON_GEM_GTT_WC);
-	} else {
-		/* Before CIK, it's better to stick to cacheable GTT due
-		 * to the command stream checking
-		 */
-		r = radeon_sa_bo_manager_init(rdev, &rdev->ring_tmp_bo,
-					      RADEON_IB_POOL_SIZE*64*1024,
-					      RADEON_GPU_PAGE_SIZE,
-					      RADEON_GEM_DOMAIN_GTT, 0);
+	/* Before CIK, it's better to stick to cacheable GTT due
+	 * to the command stream checking
+	 */
+	if ((radeon_sa_wc == -1 && rdev->family >= CHIP_BONAIRE) ||
+	    radeon_sa_wc == 1) {
+		flags = RADEON_GEM_GTT_WC;
 	}
+
+	r = radeon_sa_bo_manager_init(rdev, &rdev->ring_tmp_bo,
+				      RADEON_IB_POOL_SIZE*64*1024,
+				      RADEON_GPU_PAGE_SIZE,
+				      RADEON_GEM_DOMAIN_GTT,
+				      flags);
 	if (r) {
 		return r;
 	}
