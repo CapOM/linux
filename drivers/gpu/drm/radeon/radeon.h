@@ -153,6 +153,9 @@ extern int radeon_sa_wc;
 /* max number of rings */
 #define RADEON_NUM_RINGS			8
 
+/* max number of caller addr */
+#define RADEON_MAX_CALLER_ADDR			6
+
 /* number of hw syncs before falling back on blocking */
 #define RADEON_NUM_SYNCS			4
 
@@ -362,6 +365,7 @@ struct radeon_fence_driver {
 	volatile uint32_t		*cpu_addr;
 	/* sync_seq is protected by ring emission lock */
 	uint64_t			sync_seq[RADEON_NUM_RINGS];
+	void*				caller_addr[RADEON_NUM_RINGS][RADEON_MAX_CALLER_ADDR];
 	atomic64_t			last_seq;
 	bool				initialized, delayed_irq;
 	struct delayed_work		lockup_work;

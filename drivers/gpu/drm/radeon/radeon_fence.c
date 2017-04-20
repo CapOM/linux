@@ -131,6 +131,7 @@ int radeon_fence_emit(struct radeon_device *rdev,
 		      int ring)
 {
 	u64 seq;
+	int i;
 
 	/* we are protected by the ring emission mutex */
 	*fence = kmalloc(sizeof(struct radeon_fence), GFP_KERNEL);
@@ -139,6 +140,12 @@ int radeon_fence_emit(struct radeon_device *rdev,
 	}
 	(*fence)->rdev = rdev;
 	(*fence)->seq = seq = ++rdev->fence_drv[ring].sync_seq[ring];
+
+	for (i = 0; i < RADEON_MAX_CALLER_ADDR; ++i) {
+		rdev->fence_drv[ring].caller_addr[ring][i] =
+			__builtin_return_address(i);
+	}
+
 	(*fence)->ring = ring;
 	(*fence)->is_vm_update = false;
 	fence_init(&(*fence)->base, &radeon_fence_ops,
@@ -294,12 +301,16 @@ static void radeon_fence_check_lockup(struct work_struct *work)
 		wake_up_all(&rdev->fence_queue);
 
 	else if (radeon_ring_is_lockup(rdev, ring, &rdev->ring[ring])) {
+		int i;
 
 		/* good news we believe it's a lockup */
-		dev_warn(rdev->dev, "GPU lockup (current fence id "
+		DRM_ERROR("GPU lockup (current fence id "
 			 "0x%016llx last fence id 0x%016llx on ring %d)\n",
 			 (uint64_t)atomic64_read(&fence_drv->last_seq),
 			 fence_drv->sync_seq[ring], ring);
+		DRM_ERROR("Waiting last fence emited from:\n");
+		for (i = 0; i < RADEON_MAX_CALLER_ADDR; ++i)
+			DRM_ERROR("    %ps\n", fence_drv->caller_addr[ring][i]);
 
 		/* remember that we need an reset */
 		rdev->needs_reset = true;
@@ -875,12 +886,16 @@ int radeon_fence_driver_start_ring(struct radeon_device *rdev, int ring)
 static void radeon_fence_driver_init_ring(struct radeon_device *rdev, int ring)
 {
 	int i;
+	int j;
 
 	rdev->fence_drv[ring].scratch_reg = -1;
 	rdev->fence_drv[ring].cpu_addr = NULL;
 	rdev->fence_drv[ring].gpu_addr = 0;
-	for (i = 0; i < RADEON_NUM_RINGS; ++i)
+	for (i = 0; i < RADEON_NUM_RINGS; ++i) {
 		rdev->fence_drv[ring].sync_seq[i] = 0;
+		for (j = 0; j < RADEON_MAX_CALLER_ADDR; ++j)
+			rdev->fence_drv[ring].caller_addr[i][j] = 0;
+	}
 	atomic64_set(&rdev->fence_drv[ring].last_seq, 0);
 	rdev->fence_drv[ring].initialized = false;
 	INIT_DELAYED_WORK(&rdev->fence_drv[ring].lockup_work,

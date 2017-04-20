@@ -258,10 +258,33 @@ bool radeon_ring_test_lockup(struct radeon_device *rdev, struct radeon_ring *rin
 
 	elapsed = jiffies_to_msecs(jiffies_64 - last);
 	if (radeon_lockup_timeout && elapsed >= radeon_lockup_timeout) {
-		dev_err(rdev->dev, "ring %d stalled for more than %llumsec\n",
+		DRM_ERROR("ring %d stalled for more than %llumsec\n",
 			ring->idx, elapsed);
 		return true;
 	}
+
+	if (radeon_lockup_timeout > 0 &&
+		elapsed >= (radeon_lockup_timeout / 2)) {
+		u32 idx = ring->idx;
+		int i;
+		DRM_ERROR("ring %d busy for more than %llud msec\n",
+		           idx, elapsed);
+		DRM_ERROR("Waiting fence %llud emited from:\n",
+				  rdev->fence_drv[idx].sync_seq[idx]);
+		for (i = 0; i < RADEON_MAX_CALLER_ADDR; ++i) {
+			char buf_addr[32];
+			memset(buf_addr, 0, 32 * sizeof(char));
+			if (rdev->fence_drv[idx].caller_addr[idx][i] == 0)
+				break;
+
+			snprintf(buf_addr, 32, "%ps", rdev->fence_drv[idx].caller_addr[idx][i]);
+			DRM_ERROR("    %s\n", buf_addr);
+
+			if (strncmp(buf_addr, "drm_ioctl", strlen("drm_ioctl")) == 0)
+				break;
+		}
+	}
+
 	/* give a chance to the GPU ... */
 	return false;
 }
