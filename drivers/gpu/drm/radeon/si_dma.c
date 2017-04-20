@@ -252,8 +252,21 @@ struct radeon_fence *si_copy_dma(struct radeon_device *rdev,
 		return ERR_PTR(r);
 	}
 
-	radeon_sync_resv(rdev, &sync, resv, false);
-	radeon_sync_rings(rdev, &sync, ring->idx);
+	r = radeon_sync_resv(rdev, &sync, resv, false);
+	if (r) {
+		DRM_ERROR("failed to sync resv on ring %d, ret: %d\n", ring->idx, r);
+		radeon_ring_unlock_undo(rdev, ring);
+		radeon_sync_free(rdev, &sync, NULL);
+		return ERR_PTR(r);
+	}
+
+	r = radeon_sync_rings(rdev, &sync, ring->idx);
+	if (r) {
+		DRM_ERROR("failed to sync rings %d, ret: %d\n", ring->idx, r);
+		radeon_ring_unlock_undo(rdev, ring);
+		radeon_sync_free(rdev, &sync, NULL);
+		return ERR_PTR(r);
+	}
 
 	for (i = 0; i < num_loops; i++) {
 		cur_size_in_bytes = size_in_bytes;
