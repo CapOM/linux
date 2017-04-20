@@ -1069,11 +1069,15 @@ radeon_fence_wait_cb(struct fence *fence, struct fence_cb *cb)
 }
 
 static signed long radeon_fence_default_wait(struct fence *f, bool intr,
-					     signed long t)
+					     signed long timeout)
 {
 	struct radeon_fence *fence = to_radeon_fence(f);
 	struct radeon_device *rdev = fence->rdev;
 	struct radeon_wait_cb cb;
+	signed long threshold = /*((radeon_lockup_timeout / 4) / 1000)*/ 4 * HZ;
+	signed long timeout_part1 = min(threshold, timeout);
+	signed long timeout_part2 = timeout > timeout_part1 ? (timeout - timeout_part1) : 0;
+	signed long t = timeout_part1;
 
 	cb.task = current;
 
@@ -1102,6 +1106,15 @@ static signed long radeon_fence_default_wait(struct fence *f, bool intr,
 
 		if (t > 0 && intr && signal_pending(current))
 			t = -ERESTARTSYS;
+
+		if (t == 0 && timeout_part2 > 0) {
+			DRM_ERROR("still waiting (%ld / %ld) fence seq: %llud from " \
+					  "ring: %u\n", timeout_part1 / HZ, timeout / HZ,
+					  fence->seq, fence->ring);
+			WARN_ON(1);
+			t = timeout_part2;
+			timeout_part2 = 0;
+		}
 	}
 
 	__set_current_state(TASK_RUNNING);
