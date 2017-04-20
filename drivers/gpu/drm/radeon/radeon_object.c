@@ -81,7 +81,17 @@ static void radeon_ttm_bo_destroy(struct ttm_buffer_object *tbo)
 	list_del_init(&bo->list);
 	mutex_unlock(&bo->rdev->gem.mutex);
 	radeon_bo_clear_surface_reg(bo);
-	WARN_ON(!list_empty(&bo->va));
+
+	/* This will be expected is the bo was cache and destroy after
+     * acceleration has been disabled. */
+	if (!list_empty(&bo->va)) {
+		DRM_ERROR("List of all virtual address not empty (is singular: %d) " \
+		          "(prime shared count: %d) for bo: %p, accel working: %d\n",
+		          list_is_singular(&bo->va), bo->prime_shared_count, bo,
+		          bo->rdev->accel_working);
+		WARN_ON_ONCE(1);
+	}
+
 	drm_gem_object_release(&bo->gem_base);
 	kfree(bo);
 }
