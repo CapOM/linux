@@ -491,6 +491,7 @@ static u64 radeon_bo_get_threshold_for_moves(struct radeon_device *rdev)
 {
 	u64 real_vram_size = rdev->mc.real_vram_size;
 	u64 vram_usage = atomic64_read(&rdev->vram_usage);
+	static bool min_reached = false;
 
 	/* This function is based on the current VRAM usage.
 	 *
@@ -534,7 +535,17 @@ static u64 radeon_bo_get_threshold_for_moves(struct radeon_device *rdev)
 	u64 half_vram = real_vram_size >> 1;
 	u64 half_free_vram = vram_usage >= half_vram ? 0 : half_vram - vram_usage;
 	u64 bytes_moved_threshold = half_free_vram >> 1;
-	return max(bytes_moved_threshold, 1024*1024ull);
+	if (bytes_moved_threshold > 1024*1024ull) {
+		min_reached = false;
+		return bytes_moved_threshold;
+	}
+
+	if (!min_reached) {
+		min_reached = true;
+		DRM_ERROR("Minimal allowed moved reached: 1MB\n");
+	}
+
+	return 1024*1024ull;
 }
 
 int radeon_bo_list_validate(struct radeon_device *rdev,
@@ -546,6 +557,11 @@ int radeon_bo_list_validate(struct radeon_device *rdev,
 	int r;
 	u64 bytes_moved = 0, initial_bytes_moved;
 	u64 bytes_moved_threshold = radeon_bo_get_threshold_for_moves(rdev);
+	u64 rejected_gtt_vram_bytes = 0;
+	int nb_move_allowed = 0;
+	int nb_move_rejected = 0;
+	int nb_move_rejected_gtt_vram = 0;
+	int nb_prime_bo = 0;
 
 	INIT_LIST_HEAD(&duplicates);
 	r = ttm_eu_reserve_buffers(ticket, head, true, &duplicates);
@@ -555,6 +571,10 @@ int radeon_bo_list_validate(struct radeon_device *rdev,
 
 	list_for_each_entry(lobj, head, tv.head) {
 		struct radeon_bo *bo = lobj->robj;
+
+		if (bo->prime_shared_count > 0)
+			++nb_prime_bo;
+
 		if (!bo->pin_count) {
 			u32 domain = lobj->prefered_domains;
 			u32 allowed = lobj->allowed_domains;
@@ -570,10 +590,31 @@ int radeon_bo_list_validate(struct radeon_device *rdev,
 			 * completely.
 			 */
 			if ((allowed & current_domain) != 0 &&
-			    (domain & current_domain) == 0 && /* will be moved */
-			    bytes_moved > bytes_moved_threshold) {
-				/* don't move it */
-				domain = current_domain;
+			    (domain & current_domain) == 0) { /* will be moved */
+			    if (bytes_moved > bytes_moved_threshold) {
+					/* don't move it */
+					++nb_move_rejected;
+					if (current_domain == RADEON_GEM_DOMAIN_GTT &&
+						domain == RADEON_GEM_DOMAIN_VRAM) {
+						++nb_move_rejected_gtt_vram;
+						rejected_gtt_vram_bytes += bo->tbo.mem.size;
+					}
+					domain = current_domain;
+
+					if (nb_move_rejected == 1) {
+						u64 gtt_usage = atomic64_read(&rdev->gtt_usage);
+						u64 vram_usage = atomic64_read(&rdev->vram_usage);
+						DRM_ERROR("bytes_moved %llud MB > threshold: %llud MB, " \
+								  "gtt usage: %llud MB, vram usage: %llud MB\n",
+								  bytes_moved / 1024 / 1024,
+								  bytes_moved_threshold / 1024 / 1024,
+								  gtt_usage / 1024 / 1024,
+								  vram_usage / 1024 / 1024);
+					}
+
+				} else {
+					++nb_move_allowed;
+				}
 			}
 
 		retry:
@@ -598,6 +639,20 @@ int radeon_bo_list_validate(struct radeon_device *rdev,
 		}
 		lobj->gpu_offset = radeon_bo_gpu_offset(bo);
 		lobj->tiling_flags = bo->tiling_flags;
+	}
+
+	if (nb_move_rejected > 0) {
+		u64 gtt_usage = atomic64_read(&rdev->gtt_usage);
+		u64 vram_usage = atomic64_read(&rdev->vram_usage);
+		DRM_ERROR("nb_move_rejected: %d/%d, nb_move_rejected_gtt_vram: %d, " \
+				  "rejected_gtt_vram_bytes: %llud MB, gtt usage: %llud MB, " \
+				  "vram usage: %llud MB, nb_prime_bo: %d\n",
+				  nb_move_rejected, nb_move_allowed + nb_move_rejected,
+				  nb_move_rejected_gtt_vram,
+				  rejected_gtt_vram_bytes / 1024 / 1024,
+				  gtt_usage / 1024 / 1024, vram_usage / 1024 / 1024,
+				  nb_prime_bo);
+
 	}
 
 	list_for_each_entry(lobj, &duplicates, tv.head) {
