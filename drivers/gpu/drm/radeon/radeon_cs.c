@@ -493,6 +493,11 @@ static int radeon_bo_vm_update_pte(struct radeon_cs_parser *p,
 	struct radeon_bo_va *bo_va;
 	int i, r;
 
+	if (!rdev->vm_manager.enabled || !rdev->accel_working) {
+		DRM_ERROR("vm disabled %d %d\n", rdev->vm_manager.enabled, rdev->accel_working);
+		return -ENOTTY;
+	}
+
 	r = radeon_vm_update_page_directory(rdev, vm);
 	if (r)
 		return r;

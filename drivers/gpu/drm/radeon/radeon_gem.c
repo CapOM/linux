@@ -259,6 +259,15 @@ int radeon_gem_create_ioctl(struct drm_device *dev, void *data,
 	int r;
 
 	down_read(&rdev->exclusive_lock);
+
+	if (!rdev->vm_manager.enabled || !rdev->accel_working) {
+		/* Probably gpu is reseting or acceleration disabled. */
+		DRM_ERROR("gem creation rejected because vm manager disabled %d %d\n",
+			rdev->vm_manager.enabled, rdev->accel_working);
+		up_read(&rdev->exclusive_lock);
+		return -ENOTTY;
+	}
+
 	/* create a gem object to contain this object in */
 	args->size = roundup(args->size, PAGE_SIZE);
 	r = radeon_gem_object_create(rdev, args->size, args->alignment,
@@ -605,7 +614,7 @@ int radeon_gem_va_ioctl(struct drm_device *dev, void *data,
 	u32 invalid_flags;
 	int r = 0;
 
-	if (!rdev->vm_manager.enabled) {
+	if (!rdev->vm_manager.enabled || !rdev->accel_working) {
 		args->operation = RADEON_VA_RESULT_ERROR;
 		return -ENOTTY;
 	}

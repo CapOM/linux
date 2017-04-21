@@ -920,12 +920,24 @@ int radeon_vm_bo_update(struct radeon_device *rdev,
 			struct radeon_bo_va *bo_va,
 			struct ttm_mem_reg *mem)
 {
-	struct radeon_vm *vm = bo_va->vm;
+	struct radeon_vm *vm = NULL;
 	struct radeon_ib ib;
 	unsigned nptes, ncmds, ndw;
 	uint64_t addr;
 	uint32_t flags;
 	int r;
+
+	if (!rdev->vm_manager.enabled || !rdev->accel_working) {
+		DRM_ERROR("vm disabled %d %d\n", rdev->vm_manager.enabled, rdev->accel_working);
+		return -ENOTTY;
+	}
+
+	if (!bo_va) {
+		DRM_ERROR("bo_va null\n", bo_va);
+		return -EINVAL;
+	}
+
+	vm = bo_va->vm;
 
 	if (!bo_va->it.start) {
 		dev_err(rdev->dev, "bo %p don't has a mapping in vm %p\n",

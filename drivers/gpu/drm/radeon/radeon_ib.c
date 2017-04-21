@@ -274,6 +274,7 @@ int radeon_ib_ring_tests(struct radeon_device *rdev)
 				/* oh, oh, that's really bad */
 				DRM_ERROR("radeon: failed testing IB on GFX ring (%d).\n", r);
 				rdev->accel_working = false;
+				//rdev->vm_manager.enabled = false;
 				return r;
 
 			} else {
