@@ -46,7 +46,9 @@ struct bug_entry {
  */
 #ifndef HAVE_ARCH_BUG
 #define BUG() do { \
+	printk(KERN_ERR "+++ PANIC JIS +++\n"); mdelay(1000);
 	printk("BUG: failure at %s:%d/%s()!\n", __FILE__, __LINE__, __func__); \
+	mdelay(1000); \
 	panic("BUG!"); \
 } while (0)
 #endif
@@ -76,9 +78,9 @@ extern void warn_slowpath_null(const char *file, const int line);
 	warn_slowpath_fmt_taint(__FILE__, __LINE__, taint, arg)
 #else
 #define __WARN()		__WARN_TAINT(TAINT_WARN)
-#define __WARN_printf(arg...)	do { printk(arg); __WARN(); } while (0)
+#define __WARN_printf(arg...)	do { printk(KERN_ERR "+++ WARNING JIS +++\n"); mdelay(1000); printk(arg); __WARN(); } while (0)
 #define __WARN_printf_taint(taint, arg...)				\
-	do { printk(arg); __WARN_TAINT(taint); } while (0)
+	do { printk(KERN_ERR "+++ WARNING JIS +++\n"); mdelay(1000); printk(arg); __WARN_TAINT(taint); } while (0)
 #endif
 
 /* used internally by panic.c */

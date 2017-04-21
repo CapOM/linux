@@ -559,7 +559,7 @@ void __warn(const char *file, int line, void *caller, unsigned taint,
 void warn_slowpath_fmt(const char *file, int line, const char *fmt, ...)
 {
 	struct warn_args args;
-
+	printk(KERN_ERR "+++ WARNING JIS +++\n"); mdelay(1000);
 	args.fmt = fmt;
 	va_start(args.args, fmt);
 	__warn(file, line, __builtin_return_address(0), TAINT_WARN, NULL,
@@ -573,6 +573,7 @@ void warn_slowpath_fmt_taint(const char *file, int line,
 {
 	struct warn_args args;
 
+	printk(KERN_ERR "+++ WARNING JIS +++\n"); mdelay(1000);
 	args.fmt = fmt;
 	va_start(args.args, fmt);
 	__warn(file, line, __builtin_return_address(0), taint, NULL, &args);
