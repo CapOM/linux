@@ -486,7 +486,7 @@ static bool radeon_fence_any_seq_signaled(struct radeon_device *rdev, u64 *seq)
  * @timeout: maximum time to wait, or MAX_SCHEDULE_TIMEOUT for infinite wait
  *
  * Wait for the requested sequence number(s) to be written by any ring
- * (all asics).  Sequnce number array is indexed by ring id.
+ * (all asics).  Sequence number array is indexed by ring id.
  * @intr selects whether to use interruptable (true) or non-interruptable
  * (false) sleep when waiting for the sequence number.  Helper function
  * for radeon_fence_wait_*().
