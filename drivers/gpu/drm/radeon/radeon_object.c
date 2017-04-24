@@ -228,6 +228,7 @@ int radeon_bo_create(struct radeon_device *rdev,
 				       RADEON_GEM_DOMAIN_CPU);
 
 	bo->flags = flags;
+	bo->vram_flags = 0;
 	/* PCI GART is always snooped */
 	if (!(rdev->flags & RADEON_IS_PCIE))
 		bo->flags &= ~(RADEON_GEM_GTT_WC | RADEON_GEM_GTT_UC);

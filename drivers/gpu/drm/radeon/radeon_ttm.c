@@ -440,6 +440,19 @@ static int radeon_bo_move(struct ttm_buffer_object *bo,
 		r = radeon_move_ram_vram(bo, evict, interruptible,
 					    no_wait_gpu, new_mem);
 	} else {
+		/* Clear WC flag when moving bo from vram to gtt. */
+		if (old_mem->mem_type == TTM_PL_VRAM && new_mem->mem_type == TTM_PL_TT) {
+			if (rbo->flags & RADEON_GEM_GTT_WC) {
+				rbo->vram_flags |= RADEON_GEM_GTT_WC;
+				rbo->flags &= ~RADEON_GEM_GTT_WC;
+			}
+		/* Re-add WC flag when moving back from gtt to vram. */
+		} else if (old_mem->mem_type == TTM_PL_TT && new_mem->mem_type == TTM_PL_VRAM) {
+			if (rbo->vram_flags & RADEON_GEM_GTT_WC) {
+				rbo->flags |= RADEON_GEM_GTT_WC;
+				rbo->vram_flags &= ~RADEON_GEM_GTT_WC;
+			}
+		}
 		r = radeon_move_blit(bo, evict, no_wait_gpu, new_mem, old_mem);
 	}
 
