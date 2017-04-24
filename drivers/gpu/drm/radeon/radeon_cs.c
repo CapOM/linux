@@ -511,6 +511,12 @@ static int radeon_bo_vm_update_pte(struct radeon_cs_parser *p,
 		return -EINVAL;
 	}
 
+	if (rdev->ring_tmp_bo.bo == NULL) {
+		DRM_ERROR("ring_tmp_bo.bo is NULL\n");
+		mdelay(500);
+		return -EINVAL;
+	}
+
 	r = radeon_vm_bo_update(rdev, vm->ib_bo_va,
 				&rdev->ring_tmp_bo.bo->tbo.mem);
 	if (r)
