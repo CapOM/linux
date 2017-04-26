@@ -1080,6 +1080,7 @@ radeon_fence_wait_cb(struct fence *fence, struct fence_cb *cb)
 	struct radeon_wait_cb *wait =
 		container_of(cb, struct radeon_wait_cb, base);
 
+	// TODO use wake_up_state(wait->task, TASK_NORMAL);
 	wake_up_process(wait->task);
 }
 
@@ -1093,13 +1094,25 @@ static signed long radeon_fence_default_wait(struct fence *f, bool intr,
 	signed long timeout_part1 = min(threshold, timeout);
 	signed long timeout_part2 = timeout > timeout_part1 ? (timeout - timeout_part1) : 0;
 	signed long t = timeout_part1;
+	unsigned long flags;
+
+	if (rdev)
+		radeon_gart_tlb_flush(rdev);
 
 	cb.task = current;
 
 	if (fence_add_callback(f, &cb.base, radeon_fence_wait_cb))
 		return t;
 
+	spin_lock_irqsave(f->lock, flags);
+
+	/*if (intr && signal_pending(current)) {
+		ret = -ERESTARTSYS;
+		goto out;
+	}*/
+
 	while (t > 0) {
+		// TODO change to __set
 		if (intr)
 			set_current_state(TASK_INTERRUPTIBLE);
 		else
@@ -1117,7 +1130,11 @@ static signed long radeon_fence_default_wait(struct fence *f, bool intr,
 			break;
 		}
 
+		spin_unlock_irqrestore(f->lock, flags);
+
 		t = schedule_timeout(t);
+
+        spin_lock_irqsave(f->lock, flags);
 
 		if (t > 0 && intr && signal_pending(current))
 			t = -ERESTARTSYS;
@@ -1133,8 +1150,9 @@ static signed long radeon_fence_default_wait(struct fence *f, bool intr,
 	}
 
 	__set_current_state(TASK_RUNNING);
-	fence_remove_callback(f, &cb.base);
+	spin_unlock_irqrestore(f->lock, flags);
 
+	fence_remove_callback(f, &cb.base);
 	return t;
 }
 
