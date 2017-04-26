@@ -6437,6 +6437,10 @@ int si_irq_process(struct radeon_device *rdev)
 	if (!rdev->ih.enabled || rdev->shutdown)
 		return IRQ_NONE;
 
+	/* No MSIs, need a dummy read to flush PCI DMAs */
+	if (!rdev->msi_enabled)
+		RREG32(IH_RB_WPTR);
+
 	wptr = si_get_ih_wptr(rdev);
 
 restart_ih:
