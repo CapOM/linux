@@ -205,6 +205,7 @@ int radeon_mst = 0;
 int radeon_uvd = 1;
 int radeon_vce = 1;
 int radeon_sa_wc = -1;
+int radeon_no_wc = 0;
 
 MODULE_PARM_DESC(no_wb, "Disable AGP writeback for scratch registers");
 module_param_named(no_wb, radeon_no_wb, int, 0444);
@@ -304,6 +305,9 @@ module_param_named(vce, radeon_vce, int, 0444);
 
 MODULE_PARM_DESC(sa_wc, "Sub allocation manager use WC (1 = force enable, 0 = disable, -1 = auto)");
 module_param_named(sa_wc, radeon_sa_wc, int, 0444);
+
+MODULE_PARM_DESC(no_wc, "Disable write-combining");
+module_param_named(no_wc, radeon_no_wc, int, 0444);
 
 static struct pci_device_id pciidlist[] = {
 	radeon_PCI_IDS
